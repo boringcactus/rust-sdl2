@@ -320,8 +320,7 @@ fn patch_sdl2(sdl2_source_path: &Path) {
 fn patch_sdl2_mixer(sdl2_mixer_source_path: &Path) {
     // vector of <(patch_file_name, patch_file_contents)>
     let patches: Vec<(&str, &'static str)> = vec![
-        // No patches at this time. If needed, add them like this:
-        // ("SDL_mixer-2.x.y-filename.patch", include_str!("patches/SDL_mixer-2.x.y-filename.patch")),
+        ("SDL_mixer-2.0.4-vcversion.patch", include_str!("patches/SDL_mixer-2.0.4-vcversion.patch")),
     ];
     let sdl_mixer_version = format!("SDL2_mixer-{}", LASTEST_SDL2_MIXER_VERSION);
 
@@ -404,12 +403,15 @@ fn compile_sdl2_mixer(sdl2_mixer_build_path: &Path, target_os: &str) -> PathBuf 
     // TODO do this based on target ABI or something rather than target OS
     // TODO fix this bc it is broken
     if target_os.contains("windows") {
-        // TODO build with msvc if using msvc ABI
-//        let vc_build_dir = build_path.join("VisualC");
-//        run_command_in("msbuild", &[], vc_build_dir);
-        run_command_in("C:\\Program Files\\Git\\usr\\bin\\bash", &["./configure"], &build_path);
+        // TODO only build with msvc if using msvc ABI
+        let vc_build_dir = build_path.join("VisualC");
+        run_command_in("msbuild", &[], vc_build_dir);
+//        run_command_in("C:\\Program Files\\Git\\usr\\bin\\bash", &["./configure"], &build_path);
     } else {
-        run_command_in("./configure", &[], &build_path);
+        let sdl_prefix_arg = format!("--with-sdl-prefix={}", env::var("OUT_DIR").unwrap());
+        run_command_in("./configure", &[
+            &sdl_prefix_arg
+        ], &build_path);
         run_command_in("make", &[], &build_path);
     }
     build_path
@@ -699,17 +701,17 @@ fn main() {
     let sdl2_ttf_compiled_path: PathBuf;
     let sdl2_gfx_compiled_path: PathBuf;
     #[cfg(feature = "bundled")] {
-//        let sdl2_source_path = download_sdl2();
-//        patch_sdl2(sdl2_source_path.as_path());
-//        sdl2_compiled_path = compile_sdl2(sdl2_source_path.as_path(), target_os);
+        let sdl2_source_path = download_sdl2();
+        patch_sdl2(sdl2_source_path.as_path());
+        sdl2_compiled_path = compile_sdl2(sdl2_source_path.as_path(), target_os);
 
-//        let sdl2_downloaded_include_path = sdl2_source_path.join("include");
-//        let sdl2_compiled_lib_path = sdl2_compiled_path.join("lib");
+        let sdl2_downloaded_include_path = sdl2_source_path.join("include");
+        let sdl2_compiled_lib_path = sdl2_compiled_path.join("lib");
 
-//        println!("cargo:rustc-link-search={}", sdl2_compiled_lib_path.display());
+        println!("cargo:rustc-link-search={}", sdl2_compiled_lib_path.display());
 
-//        #[cfg(feature = "bindgen")]
-//        let mut include_paths = vec!(String::from(sdl2_downloaded_include_path.to_str().unwrap()));
+        #[cfg(feature = "bindgen")]
+        let mut include_paths = vec!(String::from(sdl2_downloaded_include_path.to_str().unwrap()));
 
         #[cfg(feature = "mixer")] {
             let sdl2_mixer_source_path = download_sdl2_mixer();
