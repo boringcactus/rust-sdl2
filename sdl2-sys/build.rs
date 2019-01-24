@@ -320,7 +320,7 @@ fn patch_sdl2(sdl2_source_path: &Path) {
 fn patch_sdl2_mixer(sdl2_mixer_source_path: &Path) {
     // vector of <(patch_file_name, patch_file_contents)>
     let patches: Vec<(&str, &'static str)> = vec![
-        ("SDL_mixer-2.0.4-vcversion.patch", include_str!("patches/SDL_mixer-2.0.4-vcversion.patch")),
+        ("SDL_mixer-2.0.4-vcfix.patch", include_str!("patches/SDL_mixer-2.0.4-vcfix.patch")),
     ];
     let sdl_mixer_version = format!("SDL2_mixer-{}", LASTEST_SDL2_MIXER_VERSION);
 
