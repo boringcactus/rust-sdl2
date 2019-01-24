@@ -681,6 +681,9 @@ fn main() {
 
     let sdl2_compiled_path: PathBuf;
     let sdl2_mixer_compiled_path: PathBuf;
+    let sdl2_image_compiled_path: PathBuf;
+    let sdl2_ttf_compiled_path: PathBuf;
+    let sdl2_gfx_compiled_path: PathBuf;
     #[cfg(feature = "bundled")] {
         let sdl2_source_path = download_sdl2();
         patch_sdl2(sdl2_source_path.as_path());
@@ -772,6 +775,7 @@ fn main() {
 
     #[cfg(all(feature = "bundled", not(feature = "static-link")))] {
         copy_dynamic_libraries(&sdl2_compiled_path, target_os);
+        // TODO add this for mixer/image/ttf/gfx
     }
 }
 
