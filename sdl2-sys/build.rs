@@ -396,6 +396,7 @@ fn compile_sdl2(sdl2_build_path: &Path, target_os: &str) -> PathBuf {
 }
 
 // compile an msbuild-based library
+#[cfg(feature = "bundled")]
 fn compile_msbuild(build_path: &PathBuf) -> PathBuf {
     // TODO fix this
     let vc_build_dir = build_path.join("VisualC");
@@ -404,6 +405,7 @@ fn compile_msbuild(build_path: &PathBuf) -> PathBuf {
 }
 
 // compile an autotools-based library
+#[cfg(feature = "bundled")]
 fn compile_autotools(build_path: &PathBuf) -> PathBuf {
     let sdl_prefix_arg = format!("--prefix={}", env::var("OUT_DIR").unwrap());
     run_command_in("./configure", &[
