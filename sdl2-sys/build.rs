@@ -64,6 +64,22 @@ fn run_command(cmd: &str, args: &[&str]) {
     }
 }
 
+#[cfg(all(feature = "bundled", any(feature = "mixer", feature = "image", feature = "ttf", feature = "gfx")))]
+fn run_command_in<P: AsRef<Path>>(cmd: &str, args: &[&str], dir: P) {
+    use std::process::Command;
+    match Command::new(cmd).current_dir(dir).args(args).output() {
+        Ok(output) => {
+            if !output.status.success() {
+                let error = std::str::from_utf8(&output.stderr).unwrap();
+                panic!("Command '{}' failed: {}", cmd, error);
+            }
+        }
+        Err(error) => {
+            panic!("Error running command '{}': {:#}", cmd, error);
+        }
+    }
+}
+
 #[cfg(feature = "bundled")]
 fn download_to(url: &str, dest: &str) {
     if cfg!(windows) {
@@ -123,6 +139,7 @@ fn download(archive_name: String, archive_url: String, build_folder: String) -> 
         fs::File::open(&archive_path).unwrap()
     );
     let mut ar = tar::Archive::new(reader);
+    // TODO somehow fix crash when unpacking symlinks
     ar.unpack(&out_dir).unwrap();
 
     build_path
@@ -382,23 +399,20 @@ fn compile_sdl2(sdl2_build_path: &Path, target_os: &str) -> PathBuf {
 // compile a shared or static lib depending on the feature
 #[cfg(all(feature = "bundled", feature = "mixer"))]
 fn compile_sdl2_mixer(sdl2_mixer_build_path: &Path, target_os: &str) -> PathBuf {
-    let mut cfg = cmake::Config::new(sdl2_mixer_build_path);
-    cfg.profile("release");
-
-    // TODO are these needed for SDL_mixer?
-    if target_os == "windows-gnu" {
-        cfg.define("VIDEO_OPENGLES", "OFF");
-    }
-
-    if cfg!(feature = "static-link") {
-        cfg.define("SDL_SHARED", "OFF");
-        cfg.define("SDL_STATIC", "ON");
+    // TODO set profile to release, set static/shared correctly
+    let build_path: PathBuf = sdl2_mixer_build_path.clone().into();
+    // TODO do this based on target ABI or something rather than target OS
+    // TODO fix this bc it is broken
+    if target_os.contains("windows") {
+        // TODO build with msvc if using msvc ABI
+//        let vc_build_dir = build_path.join("VisualC");
+//        run_command_in("msbuild", &[], vc_build_dir);
+        run_command_in("C:\\Program Files\\Git\\usr\\bin\\bash", &["./configure"], &build_path);
     } else {
-        cfg.define("SDL_SHARED", "ON");
-        cfg.define("SDL_STATIC", "OFF");
+        run_command_in("./configure", &[], &build_path);
+        run_command_in("make", &[], &build_path);
     }
-
-    cfg.build()
+    build_path
 }
 
 // compile a shared or static lib depending on the feature
@@ -685,17 +699,17 @@ fn main() {
     let sdl2_ttf_compiled_path: PathBuf;
     let sdl2_gfx_compiled_path: PathBuf;
     #[cfg(feature = "bundled")] {
-        let sdl2_source_path = download_sdl2();
-        patch_sdl2(sdl2_source_path.as_path());
-        sdl2_compiled_path = compile_sdl2(sdl2_source_path.as_path(), target_os);
+//        let sdl2_source_path = download_sdl2();
+//        patch_sdl2(sdl2_source_path.as_path());
+//        sdl2_compiled_path = compile_sdl2(sdl2_source_path.as_path(), target_os);
 
-        let sdl2_downloaded_include_path = sdl2_source_path.join("include");
-        let sdl2_compiled_lib_path = sdl2_compiled_path.join("lib");
+//        let sdl2_downloaded_include_path = sdl2_source_path.join("include");
+//        let sdl2_compiled_lib_path = sdl2_compiled_path.join("lib");
 
-        println!("cargo:rustc-link-search={}", sdl2_compiled_lib_path.display());
+//        println!("cargo:rustc-link-search={}", sdl2_compiled_lib_path.display());
 
-        #[cfg(feature = "bindgen")]
-        let mut include_paths = vec!(String::from(sdl2_downloaded_include_path.to_str().unwrap()));
+//        #[cfg(feature = "bindgen")]
+//        let mut include_paths = vec!(String::from(sdl2_downloaded_include_path.to_str().unwrap()));
 
         #[cfg(feature = "mixer")] {
             let sdl2_mixer_source_path = download_sdl2_mixer();
@@ -774,7 +788,7 @@ fn main() {
     link_sdl2(target_os);
 
     #[cfg(all(feature = "bundled", not(feature = "static-link")))] {
-        copy_dynamic_libraries(&sdl2_compiled_path, target_os);
+//        copy_dynamic_libraries(&sdl2_compiled_path, target_os);
         // TODO add this for mixer/image/ttf/gfx
     }
 }
