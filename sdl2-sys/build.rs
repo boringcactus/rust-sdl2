@@ -28,6 +28,15 @@ const LASTEST_SDL2_VERSION: &str = "2.0.9";
 // means the lastest stable version that can be downloaded from SDL2_mixer's source
 const LASTEST_SDL2_MIXER_VERSION: &str = "2.0.4";
 
+// means the lastest stable version that can be downloaded from SDL2_image's source
+const LASTEST_SDL2_IMAGE_VERSION: &str = "2.0.4";
+
+// means the lastest stable version that can be downloaded from SDL2_ttf's source
+const LASTEST_SDL2_TTF_VERSION: &str = "2.0.14";
+
+// means the lastest stable version that can be downloaded from SDL2_gfx's source
+const LASTEST_SDL2_GFX_VERSION: &str = "1.0.4";
+
 #[cfg(feature = "bindgen")]
 macro_rules! add_msvc_includes_to_bindings {
     ($bindings:expr) => {
@@ -99,53 +108,74 @@ fn get_pkg_config() {
 
 // returns the location of the downloaded source
 #[cfg(feature = "bundled")]
-fn download_sdl2() -> PathBuf {
+fn download(archive_name: String, archive_url: String, build_folder: String) -> PathBuf {
     let out_dir = env::var("OUT_DIR").unwrap();
 
-    let sdl2_archive_name = format!("SDL2-{}.tar.gz", LASTEST_SDL2_VERSION);
-    let sdl2_archive_url = format!("http://libsdl.org/release/{}", sdl2_archive_name);
-
-    let sdl2_archive_path = Path::new(&out_dir).join(sdl2_archive_name);
-    let sdl2_build_path = Path::new(&out_dir).join(format!("SDL2-{}", LASTEST_SDL2_VERSION));
+    let archive_path = Path::new(&out_dir).join(archive_name);
+    let build_path = Path::new(&out_dir).join(build_folder);
 
     // avoid re-downloading the archive if it already exists
-    if !sdl2_archive_path.exists() {
-        download_to(&sdl2_archive_url, sdl2_archive_path.to_str().unwrap());
+    if !archive_path.exists() {
+        download_to(&archive_url, archive_path.to_str().unwrap());
     }
 
     let reader = flate2::read::GzDecoder::new(
-        fs::File::open(&sdl2_archive_path).unwrap()
+        fs::File::open(&archive_path).unwrap()
     );
     let mut ar = tar::Archive::new(reader);
     ar.unpack(&out_dir).unwrap();
 
-    sdl2_build_path
+    build_path
 }
 
 // returns the location of the downloaded source
-// TODO don't duplicate all this
+#[cfg(feature = "bundled")]
+fn download_sdl2() -> PathBuf {
+    let sdl2_archive_name = format!("SDL2-{}.tar.gz", LASTEST_SDL2_VERSION);
+    let sdl2_archive_url = format!("http://libsdl.org/release/{}", sdl2_archive_name);
+    let sdl2_build_folder = format!("SDL2-{}", LASTEST_SDL2_VERSION);
+
+    download(sdl2_archive_name, sdl2_archive_url, sdl2_build_folder)
+}
+
+// returns the location of the downloaded source
 #[cfg(all(feature = "bundled", feature = "mixer"))]
 fn download_sdl2_mixer() -> PathBuf {
-    let out_dir = env::var("OUT_DIR").unwrap();
-
     let sdl2_mixer_archive_name = format!("SDL2_mixer-{}.tar.gz", LASTEST_SDL2_MIXER_VERSION);
     let sdl2_mixer_archive_url = format!("https://www.libsdl.org/projects/SDL_mixer/release/{}", sdl2_mixer_archive_name);
+    let sdl2_mixer_build_folder = format!("SDL2_mixer-{}", LASTEST_SDL2_MIXER_VERSION);
 
-    let sdl2_mixer_archive_path = Path::new(&out_dir).join(sdl2_mixer_archive_name);
-    let sdl2_mixer_build_path = Path::new(&out_dir).join(format!("SDL2_mixer-{}", LASTEST_SDL2_MIXER_VERSION));
+    download(sdl2_mixer_archive_name, sdl2_mixer_archive_url, sdl2_mixer_build_folder)
+}
 
-    // avoid re-downloading the archive if it already exists
-    if !sdl2_mixer_archive_path.exists() {
-        download_to(&sdl2_mixer_archive_url, sdl2_mixer_archive_path.to_str().unwrap());
-    }
+// returns the location of the downloaded source
+#[cfg(all(feature = "bundled", feature = "image"))]
+fn download_sdl2_image() -> PathBuf {
+    let sdl2_image_archive_name = format!("SDL2_image-{}.tar.gz", LASTEST_SDL2_IMAGE_VERSION);
+    let sdl2_image_archive_url = format!("https://www.libsdl.org/projects/SDL_image/release/{}", sdl2_image_archive_name);
+    let sdl2_image_build_folder = format!("SDL2_image-{}", LASTEST_SDL2_IMAGE_VERSION);
 
-    let reader = flate2::read::GzDecoder::new(
-        fs::File::open(&sdl2_mixer_archive_path).unwrap()
-    );
-    let mut ar = tar::Archive::new(reader);
-    ar.unpack(&out_dir).unwrap();
+    download(sdl2_image_archive_name, sdl2_image_archive_url, sdl2_image_build_folder)
+}
 
-    sdl2_mixer_build_path
+// returns the location of the downloaded source
+#[cfg(all(feature = "bundled", feature = "ttf"))]
+fn download_sdl2_ttf() -> PathBuf {
+    let sdl2_ttf_archive_name = format!("SDL2_ttf-{}.tar.gz", LASTEST_SDL2_TTF_VERSION);
+    let sdl2_ttf_archive_url = format!("https://www.libsdl.org/projects/SDL_ttf/release/{}", sdl2_ttf_archive_name);
+    let sdl2_ttf_build_folder = format!("SDL2_ttf-{}", LASTEST_SDL2_TTF_VERSION);
+
+    download(sdl2_ttf_archive_name, sdl2_ttf_archive_url, sdl2_ttf_build_folder)
+}
+
+// returns the location of the downloaded source
+#[cfg(all(feature = "bundled", feature = "gfx"))]
+fn download_sdl2_gfx() -> PathBuf {
+    let sdl2_gfx_archive_name = format!("SDL2_gfx-{}.tar.gz", LASTEST_SDL2_GFX_VERSION);
+    let sdl2_gfx_archive_url = format!("https://sourceforge.net/projects/sdl2gfx/files/{}/download", sdl2_gfx_archive_name);
+    let sdl2_gfx_build_folder = format!("SDL2_gfx-{}", LASTEST_SDL2_GFX_VERSION);
+
+    download(sdl2_gfx_archive_name, sdl2_gfx_archive_url, sdl2_gfx_build_folder)
 }
 
 // applies a patch
@@ -276,10 +306,55 @@ fn patch_sdl2_mixer(sdl2_mixer_source_path: &Path) {
         // No patches at this time. If needed, add them like this:
         // ("SDL_mixer-2.x.y-filename.patch", include_str!("patches/SDL_mixer-2.x.y-filename.patch")),
     ];
-    let sdl_mixer_version = format!("SDL2_mixer-{}", LASTEST_SDL2_VERSION);
+    let sdl_mixer_version = format!("SDL2_mixer-{}", LASTEST_SDL2_MIXER_VERSION);
 
     for patch in &patches {
         apply_patch(sdl2_mixer_source_path, &sdl_mixer_version, patch)
+    }
+}
+
+// apply patches to sdl2_image source
+#[cfg(all(feature = "bundled", feature = "image"))]
+fn patch_sdl2_image(sdl2_image_source_path: &Path) {
+    // vector of <(patch_file_name, patch_file_contents)>
+    let patches: Vec<(&str, &'static str)> = vec![
+        // No patches at this time. If needed, add them like this:
+        // ("SDL_image-2.x.y-filename.patch", include_str!("patches/SDL_image-2.x.y-filename.patch")),
+    ];
+    let sdl_image_version = format!("SDL2_image-{}", LASTEST_SDL2_IMAGE_VERSION);
+
+    for patch in &patches {
+        apply_patch(sdl2_image_source_path, &sdl_image_version, patch)
+    }
+}
+
+// apply patches to sdl2_ttf source
+#[cfg(all(feature = "bundled", feature = "ttf"))]
+fn patch_sdl2_ttf(sdl2_ttf_source_path: &Path) {
+    // vector of <(patch_file_name, patch_file_contents)>
+    let patches: Vec<(&str, &'static str)> = vec![
+        // No patches at this time. If needed, add them like this:
+        // ("SDL_ttf-2.x.y-filename.patch", include_str!("patches/SDL_ttf-2.x.y-filename.patch")),
+    ];
+    let sdl_ttf_version = format!("SDL2_ttf-{}", LASTEST_SDL2_TTF_VERSION);
+
+    for patch in &patches {
+        apply_patch(sdl2_ttf_source_path, &sdl_ttf_version, patch)
+    }
+}
+
+// apply patches to sdl2_gfx source
+#[cfg(all(feature = "bundled", feature = "gfx"))]
+fn patch_sdl2_gfx(sdl2_gfx_source_path: &Path) {
+    // vector of <(patch_file_name, patch_file_contents)>
+    let patches: Vec<(&str, &'static str)> = vec![
+        // No patches at this time. If needed, add them like this:
+        // ("SDL_gfx-2.x.y-filename.patch", include_str!("patches/SDL_gfx-2.x.y-filename.patch")),
+    ];
+    let sdl_gfx_version = format!("SDL2_gfx-{}", LASTEST_SDL2_GFX_VERSION);
+
+    for patch in &patches {
+        apply_patch(sdl2_gfx_source_path, &sdl_gfx_version, patch)
     }
 }
 
@@ -310,6 +385,73 @@ fn compile_sdl2_mixer(sdl2_mixer_build_path: &Path, target_os: &str) -> PathBuf 
     let mut cfg = cmake::Config::new(sdl2_mixer_build_path);
     cfg.profile("release");
 
+    // TODO are these needed for SDL_mixer?
+    if target_os == "windows-gnu" {
+        cfg.define("VIDEO_OPENGLES", "OFF");
+    }
+
+    if cfg!(feature = "static-link") {
+        cfg.define("SDL_SHARED", "OFF");
+        cfg.define("SDL_STATIC", "ON");
+    } else {
+        cfg.define("SDL_SHARED", "ON");
+        cfg.define("SDL_STATIC", "OFF");
+    }
+
+    cfg.build()
+}
+
+// compile a shared or static lib depending on the feature
+#[cfg(all(feature = "bundled", feature = "image"))]
+fn compile_sdl2_image(sdl2_image_build_path: &Path, target_os: &str) -> PathBuf {
+    let mut cfg = cmake::Config::new(sdl2_image_build_path);
+    cfg.profile("release");
+
+    // TODO are these needed for SDL_image?
+    if target_os == "windows-gnu" {
+        cfg.define("VIDEO_OPENGLES", "OFF");
+    }
+
+    if cfg!(feature = "static-link") {
+        cfg.define("SDL_SHARED", "OFF");
+        cfg.define("SDL_STATIC", "ON");
+    } else {
+        cfg.define("SDL_SHARED", "ON");
+        cfg.define("SDL_STATIC", "OFF");
+    }
+
+    cfg.build()
+}
+
+// compile a shared or static lib depending on the feature
+#[cfg(all(feature = "bundled", feature = "ttf"))]
+fn compile_sdl2_ttf(sdl2_ttf_build_path: &Path, target_os: &str) -> PathBuf {
+    let mut cfg = cmake::Config::new(sdl2_ttf_build_path);
+    cfg.profile("release");
+
+    // TODO are these needed for SDL_ttf?
+    if target_os == "windows-gnu" {
+        cfg.define("VIDEO_OPENGLES", "OFF");
+    }
+
+    if cfg!(feature = "static-link") {
+        cfg.define("SDL_SHARED", "OFF");
+        cfg.define("SDL_STATIC", "ON");
+    } else {
+        cfg.define("SDL_SHARED", "ON");
+        cfg.define("SDL_STATIC", "OFF");
+    }
+
+    cfg.build()
+}
+
+// compile a shared or static lib depending on the feature
+#[cfg(all(feature = "bundled", feature = "gfx"))]
+fn compile_sdl2_gfx(sdl2_gfx_build_path: &Path, target_os: &str) -> PathBuf {
+    let mut cfg = cmake::Config::new(sdl2_gfx_build_path);
+    cfg.profile("release");
+
+    // TODO are these needed for SDL_gfx?
     if target_os == "windows-gnu" {
         cfg.define("VIDEO_OPENGLES", "OFF");
     }
@@ -381,6 +523,19 @@ fn link_sdl2(target_os: &str) {
         if cfg!(feature = "bundled") || cfg!(feature = "use-pkgconfig") == false { 
             println!("cargo:rustc-link-lib=static=SDL2main");
             println!("cargo:rustc-link-lib=static=SDL2");
+
+            if cfg!(feature = "mixer") {
+                println!("cargo:rustc-link-lib=static=SDL2_mixer");
+            }
+            if cfg!(feature = "image") {
+                println!("cargo:rustc-link-lib=static=SDL2_image");
+            }
+            if cfg!(feature = "ttf") {
+                println!("cargo:rustc-link-lib=static=SDL2_ttf");
+            }
+            if cfg!(feature = "gfx") {
+                println!("cargo:rustc-link-lib=static=SDL2_gfx");
+            }
         }
 
         // Also linked to any required libraries for each supported platform
@@ -551,6 +706,51 @@ fn main() {
 
             #[cfg(feature = "bindgen")] {
                 include_paths.push(String::from(sdl2_mixer_downloaded_include_path.to_str().unwrap()));
+            }
+        }
+
+        #[cfg(feature = "image")] {
+            let sdl2_image_source_path = download_sdl2_image();
+            patch_sdl2_image(sdl2_image_source_path.as_path());
+            sdl2_image_compiled_path = compile_sdl2_image(sdl2_image_source_path.as_path(), target_os);
+
+            let sdl2_image_downloaded_include_path = sdl2_image_source_path.join("include");
+            let sdl2_image_compiled_lib_path = sdl2_image_compiled_path.join("lib");
+
+            println!("cargo:rustc-link-search={}", sdl2_image_compiled_lib_path.display());
+
+            #[cfg(feature = "bindgen")] {
+                include_paths.push(String::from(sdl2_image_downloaded_include_path.to_str().unwrap()));
+            }
+        }
+
+        #[cfg(feature = "ttf")] {
+            let sdl2_ttf_source_path = download_sdl2_ttf();
+            patch_sdl2_ttf(sdl2_ttf_source_path.as_path());
+            sdl2_ttf_compiled_path = compile_sdl2_ttf(sdl2_ttf_source_path.as_path(), target_os);
+
+            let sdl2_ttf_downloaded_include_path = sdl2_ttf_source_path.join("include");
+            let sdl2_ttf_compiled_lib_path = sdl2_ttf_compiled_path.join("lib");
+
+            println!("cargo:rustc-link-search={}", sdl2_ttf_compiled_lib_path.display());
+
+            #[cfg(feature = "bindgen")] {
+                include_paths.push(String::from(sdl2_ttf_downloaded_include_path.to_str().unwrap()));
+            }
+        }
+
+        #[cfg(feature = "gfx")] {
+            let sdl2_gfx_source_path = download_sdl2_gfx();
+            patch_sdl2_gfx(sdl2_gfx_source_path.as_path());
+            sdl2_gfx_compiled_path = compile_sdl2_gfx(sdl2_gfx_source_path.as_path(), target_os);
+
+            let sdl2_gfx_downloaded_include_path = sdl2_gfx_source_path.join("include");
+            let sdl2_gfx_compiled_lib_path = sdl2_gfx_compiled_path.join("lib");
+
+            println!("cargo:rustc-link-search={}", sdl2_gfx_compiled_lib_path.display());
+
+            #[cfg(feature = "bindgen")] {
+                include_paths.push(String::from(sdl2_gfx_downloaded_include_path.to_str().unwrap()));
             }
         }
 
