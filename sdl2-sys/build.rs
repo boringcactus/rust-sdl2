@@ -64,7 +64,7 @@ fn run_command(cmd: &str, args: &[&str]) {
     }
 }
 
-#[cfg(all(feature = "bundled", any(feature = "mixer", feature = "image", feature = "ttf", feature = "gfx")))]
+#[cfg(feature = "bundled")]
 fn run_command_in<P: AsRef<Path>>(cmd: &str, args: &[&str], dir: P) {
     use std::process::Command;
     match Command::new(cmd).current_dir(dir).args(args).output() {
