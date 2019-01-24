@@ -189,7 +189,7 @@ fn download_sdl2_ttf() -> PathBuf {
 #[cfg(all(feature = "bundled", feature = "gfx"))]
 fn download_sdl2_gfx() -> PathBuf {
     let sdl2_gfx_archive_name = format!("SDL2_gfx-{}.tar.gz", LASTEST_SDL2_GFX_VERSION);
-    let sdl2_gfx_archive_url = format!("https://sourceforge.net/projects/sdl2gfx/files/{}/download", sdl2_gfx_archive_name);
+    let sdl2_gfx_archive_url = format!("https://downloads.sourceforge.net/project/sdl2gfx/{}", sdl2_gfx_archive_name);
     let sdl2_gfx_build_folder = format!("SDL2_gfx-{}", LASTEST_SDL2_GFX_VERSION);
 
     download(sdl2_gfx_archive_name, sdl2_gfx_archive_url, sdl2_gfx_build_folder)
