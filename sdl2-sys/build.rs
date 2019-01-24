@@ -92,7 +92,7 @@ fn download_to(url: &str, dest: &str) {
             }", url, dest
         ]);
     } else {
-        run_command("curl", &[url, "-o", dest]);
+        run_command("curl", &["-L", url, "-o", dest]);
     }
 }
 
@@ -139,7 +139,7 @@ fn download(archive_name: String, archive_url: String, build_folder: String) -> 
         fs::File::open(&archive_path).unwrap()
     );
     let mut ar = tar::Archive::new(reader);
-    // TODO somehow fix crash when unpacking symlinks
+    // TODO somehow fix crash when unpacking symlinks on Windows
     ar.unpack(&out_dir).unwrap();
 
     build_path
