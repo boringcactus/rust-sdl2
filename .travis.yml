@@ -8,8 +8,8 @@ os:
   - osx
 env:
   matrix:
-    - CI_BUILD_FEATURES="bundled"
-    - CI_BUILD_FEATURES="gfx image ttf mixer"
+    # - CI_BUILD_FEATURES="bundled"
+    # - CI_BUILD_FEATURES="gfx image ttf mixer"
     - CI_BUILD_FEATURES="bundled gfx image ttf mixer"
     - CI_BUILD_FEATURES="bundled gfx image ttf mixer static-link"
   global:
