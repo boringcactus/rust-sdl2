@@ -395,93 +395,71 @@ fn compile_sdl2(sdl2_build_path: &Path, target_os: &str) -> PathBuf {
     cfg.build()
 }
 
+// compile an msbuild-based library
+fn compile_msbuild(build_path: &PathBuf) -> PathBuf {
+    // TODO fix this
+    let vc_build_dir = build_path.join("VisualC");
+    run_command_in("msbuild", &[], vc_build_dir);
+    build_path.clone()
+}
+
+// compile an autotools-based library
+fn compile_autotools(build_path: &PathBuf) -> PathBuf {
+    let sdl_prefix_arg = format!("--prefix={}", env::var("OUT_DIR").unwrap());
+    run_command_in("./configure", &[
+        &sdl_prefix_arg
+    ], &build_path);
+    run_command_in("make", &[], &build_path);
+    run_command_in("make", &["install"], &build_path);
+    build_path.clone()
+}
+
 // compile a shared or static lib depending on the feature
 #[cfg(all(feature = "bundled", feature = "mixer"))]
 fn compile_sdl2_mixer(sdl2_mixer_build_path: &Path, target_os: &str) -> PathBuf {
-    // TODO set profile to release, set static/shared correctly
     let build_path: PathBuf = sdl2_mixer_build_path.clone().into();
-    // TODO do this based on target ABI or something rather than target OS
-    // TODO fix this bc it is broken
+    // TODO make this decision in a different way
     if target_os.contains("windows") {
-        // TODO only build with msvc if using msvc ABI
-        let vc_build_dir = build_path.join("VisualC");
-        run_command_in("msbuild", &[], vc_build_dir);
-//        run_command_in("C:\\Program Files\\Git\\usr\\bin\\bash", &["./configure"], &build_path);
+        compile_msbuild(&build_path)
     } else {
-        let sdl_prefix_arg = format!("--prefix={}", env::var("OUT_DIR").unwrap());
-        run_command_in("./configure", &[
-            &sdl_prefix_arg
-        ], &build_path);
-        run_command_in("make", &[], &build_path);
-        run_command_in("make", &["install"], &build_path);
+        compile_autotools(&build_path)
     }
-    build_path
 }
 
 // compile a shared or static lib depending on the feature
 #[cfg(all(feature = "bundled", feature = "image"))]
 fn compile_sdl2_image(sdl2_image_build_path: &Path, target_os: &str) -> PathBuf {
-    let mut cfg = cmake::Config::new(sdl2_image_build_path);
-    cfg.profile("release");
-
-    // TODO are these needed for SDL_image?
-    if target_os == "windows-gnu" {
-        cfg.define("VIDEO_OPENGLES", "OFF");
-    }
-
-    if cfg!(feature = "static-link") {
-        cfg.define("SDL_SHARED", "OFF");
-        cfg.define("SDL_STATIC", "ON");
+    let build_path: PathBuf = sdl2_image_build_path.clone().into();
+    // TODO make this decision in a different way
+    if target_os.contains("windows") {
+        compile_msbuild(&build_path)
     } else {
-        cfg.define("SDL_SHARED", "ON");
-        cfg.define("SDL_STATIC", "OFF");
+        compile_autotools(&build_path)
     }
-
-    cfg.build()
 }
 
 // compile a shared or static lib depending on the feature
 #[cfg(all(feature = "bundled", feature = "ttf"))]
 fn compile_sdl2_ttf(sdl2_ttf_build_path: &Path, target_os: &str) -> PathBuf {
-    let mut cfg = cmake::Config::new(sdl2_ttf_build_path);
-    cfg.profile("release");
-
-    // TODO are these needed for SDL_ttf?
-    if target_os == "windows-gnu" {
-        cfg.define("VIDEO_OPENGLES", "OFF");
-    }
-
-    if cfg!(feature = "static-link") {
-        cfg.define("SDL_SHARED", "OFF");
-        cfg.define("SDL_STATIC", "ON");
+    let build_path: PathBuf = sdl2_ttf_build_path.clone().into();
+    // TODO make this decision in a different way
+    if target_os.contains("windows") {
+        compile_msbuild(&build_path)
     } else {
-        cfg.define("SDL_SHARED", "ON");
-        cfg.define("SDL_STATIC", "OFF");
+        compile_autotools(&build_path)
     }
-
-    cfg.build()
 }
 
 // compile a shared or static lib depending on the feature
 #[cfg(all(feature = "bundled", feature = "gfx"))]
 fn compile_sdl2_gfx(sdl2_gfx_build_path: &Path, target_os: &str) -> PathBuf {
-    let mut cfg = cmake::Config::new(sdl2_gfx_build_path);
-    cfg.profile("release");
-
-    // TODO are these needed for SDL_gfx?
-    if target_os == "windows-gnu" {
-        cfg.define("VIDEO_OPENGLES", "OFF");
-    }
-
-    if cfg!(feature = "static-link") {
-        cfg.define("SDL_SHARED", "OFF");
-        cfg.define("SDL_STATIC", "ON");
+    let build_path: PathBuf = sdl2_gfx_build_path.clone().into();
+    // TODO make this decision in a different way
+    if target_os.contains("windows") {
+        compile_msbuild(&build_path)
     } else {
-        cfg.define("SDL_SHARED", "ON");
-        cfg.define("SDL_STATIC", "OFF");
+        compile_autotools(&build_path)
     }
-
-    cfg.build()
 }
 
 #[cfg(not(feature = "bundled"))]
