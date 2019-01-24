@@ -408,11 +408,12 @@ fn compile_sdl2_mixer(sdl2_mixer_build_path: &Path, target_os: &str) -> PathBuf 
         run_command_in("msbuild", &[], vc_build_dir);
 //        run_command_in("C:\\Program Files\\Git\\usr\\bin\\bash", &["./configure"], &build_path);
     } else {
-        let sdl_prefix_arg = format!("--with-sdl-prefix={}", env::var("OUT_DIR").unwrap());
+        let sdl_prefix_arg = format!("--prefix={}", env::var("OUT_DIR").unwrap());
         run_command_in("./configure", &[
             &sdl_prefix_arg
         ], &build_path);
         run_command_in("make", &[], &build_path);
+        run_command_in("make", &["install"], &build_path);
     }
     build_path
 }
