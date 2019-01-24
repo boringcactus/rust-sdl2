@@ -25,6 +25,9 @@ const SDL2_HEADERS_BUNDLED_VERSION: &str = "2.0.9";
 // means the lastest stable version that can be downloaded from SDL2's source
 const LASTEST_SDL2_VERSION: &str = "2.0.9";
 
+// means the lastest stable version that can be downloaded from SDL2_mixer's source
+const LASTEST_SDL2_MIXER_VERSION: &str = "2.0.4";
+
 #[cfg(feature = "bindgen")]
 macro_rules! add_msvc_includes_to_bindings {
     ($bindings:expr) => {
@@ -98,14 +101,14 @@ fn get_pkg_config() {
 #[cfg(feature = "bundled")]
 fn download_sdl2() -> PathBuf {
     let out_dir = env::var("OUT_DIR").unwrap();
-    
+
     let sdl2_archive_name = format!("SDL2-{}.tar.gz", LASTEST_SDL2_VERSION);
     let sdl2_archive_url = format!("http://libsdl.org/release/{}", sdl2_archive_name);
-    
+
     let sdl2_archive_path = Path::new(&out_dir).join(sdl2_archive_name);
     let sdl2_build_path = Path::new(&out_dir).join(format!("SDL2-{}", LASTEST_SDL2_VERSION));
 
-    // avoid re-downloading the archive if it already exists    
+    // avoid re-downloading the archive if it already exists
     if !sdl2_archive_path.exists() {
         download_to(&sdl2_archive_url, sdl2_archive_path.to_str().unwrap());
     }
@@ -119,6 +122,137 @@ fn download_sdl2() -> PathBuf {
     sdl2_build_path
 }
 
+// returns the location of the downloaded source
+// TODO don't duplicate all this
+#[cfg(all(feature = "bundled", feature = "mixer"))]
+fn download_sdl2_mixer() -> PathBuf {
+    let out_dir = env::var("OUT_DIR").unwrap();
+
+    let sdl2_mixer_archive_name = format!("SDL2_mixer-{}.tar.gz", LASTEST_SDL2_MIXER_VERSION);
+    let sdl2_mixer_archive_url = format!("https://www.libsdl.org/projects/SDL_mixer/release/{}", sdl2_mixer_archive_name);
+
+    let sdl2_mixer_archive_path = Path::new(&out_dir).join(sdl2_mixer_archive_name);
+    let sdl2_mixer_build_path = Path::new(&out_dir).join(format!("SDL2_mixer-{}", LASTEST_SDL2_MIXER_VERSION));
+
+    // avoid re-downloading the archive if it already exists
+    if !sdl2_mixer_archive_path.exists() {
+        download_to(&sdl2_mixer_archive_url, sdl2_mixer_archive_path.to_str().unwrap());
+    }
+
+    let reader = flate2::read::GzDecoder::new(
+        fs::File::open(&sdl2_mixer_archive_path).unwrap()
+    );
+    let mut ar = tar::Archive::new(reader);
+    ar.unpack(&out_dir).unwrap();
+
+    sdl2_mixer_build_path
+}
+
+// applies a patch
+#[cfg(feature = "bundled")]
+fn apply_patch(source_path: &Path, version: &String, patch: &(&str, &str)) {
+    // Only apply patches whose file name is prefixed with the currently
+    // targeted version of SDL2.
+    if !patch.0.starts_with(version) {
+        return;
+    }
+    let mut patch_set = unidiff::PatchSet::new();
+    patch_set.parse(patch.1).expect("Error parsing diff");
+    // For every modified file, copy the existing file to <file_name>_old,
+    // open a new copy of <file_name>. and fill the new file with a
+    // combination of the unmodified contents, and the patched sections.
+    // TODO: This code is untested (save for the immediate application), and
+    // probably belongs in the unidiff (or similar) package.
+    for modified_file in patch_set.modified_files() {
+        use std::io::{Write, BufRead};
+
+        let file_path = source_path.join(modified_file.path());
+        let old_path = source_path.join(format!("{}_old", modified_file.path()));
+        fs::rename(&file_path, &old_path)
+            .expect(&format!(
+                "Rename of {} to {} failed",
+                file_path.to_string_lossy(),
+                old_path.to_string_lossy()));
+
+        let dst_file = fs::File::create(file_path).unwrap();
+        let mut dst_buf = io::BufWriter::new(dst_file);
+        let old_file = fs::File::open(old_path).unwrap();
+        let mut old_buf = io::BufReader::new(old_file);
+        let mut cursor = 0;
+
+        for (i, hunk) in modified_file.into_iter().enumerate() {
+            // Write old lines from cursor to the start of this hunk.
+            let num_lines = hunk.source_start - cursor - 1;
+            for _ in 0..num_lines {
+                let mut line = String::new();
+                old_buf.read_line(&mut line).unwrap();
+                dst_buf.write_all(line.as_bytes()).unwrap();
+            }
+            cursor += num_lines;
+
+            // Skip lines in old_file, and verify that what we expect to
+            // replace is present in the old_file.
+            for expected_line in hunk.source_lines() {
+                let mut actual_line = String::new();
+                old_buf.read_line(&mut actual_line).unwrap();
+                actual_line.pop(); // Remove the trailing newline.
+                if expected_line.value.trim_end() != actual_line {
+                    panic!("Can't apply patch; mismatch between expected and actual in hunk {}", i);
+                }
+            }
+            cursor += hunk.source_length;
+
+            // Write the new lines into the destination.
+            for line in hunk.target_lines() {
+                dst_buf.write_all(line.value.as_bytes()).unwrap();
+                dst_buf.write_all(b"\n").unwrap();
+            }
+        }
+
+        // Write all remaining lines from the old file into the new.
+        for line in old_buf.lines() {
+            dst_buf.write_all(&line.unwrap().into_bytes()).unwrap();
+            dst_buf.write_all(b"\n").unwrap();
+        }
+    }
+    // For every removed file, simply delete the original.
+    // TODO: This is entirely untested code. There are likely bugs here, and
+    // this really should be part of the unidiff library, not a function
+    // defined here. Hopefully this gets moved somewhere else before it
+    // bites someone.
+    for removed_file in patch_set.removed_files() {
+        fs::remove_file(source_path.join(removed_file.path()))
+            .expect(
+                &format!("Failed to remove file {} from {}",
+                         removed_file.path(),
+                         source_path.to_string_lossy()));
+    }
+    // For every new file, copy the entire contents of the patched file into
+    // a newly created <file_name>.
+    // TODO: This is entirely untested code. There are likely bugs here, and
+    // this really should be part of the unidiff library, not a function
+    // defined here. Hopefully this gets moved somewhere else before it
+    // bites someone.
+    for added_file in patch_set.added_files() {
+        use std::io::Write;
+
+        // This should be superfluous. I don't know how a new file would
+        // ever have more than one hunk.
+        assert!(added_file.len() == 1);
+        let file_path = source_path.join(added_file.path());
+        let mut dst_file = fs::File::create(&file_path)
+            .expect(&format!(
+                "Failed to create file {}",
+                file_path.to_string_lossy()));
+        let mut dst_buf = io::BufWriter::new(&dst_file);
+
+        for line in added_file.into_iter().nth(0).unwrap().target_lines() {
+            dst_buf.write_all(line.value.as_bytes()).unwrap();
+            dst_buf.write_all(b"\n").unwrap();
+        }
+    }
+}
+
 // apply patches to sdl2 source
 #[cfg(feature = "bundled")]
 fn patch_sdl2(sdl2_source_path: &Path) {
@@ -130,107 +264,22 @@ fn patch_sdl2(sdl2_source_path: &Path) {
     let sdl_version = format!("SDL2-{}", LASTEST_SDL2_VERSION);
 
     for patch in &patches {
-        // Only apply patches whose file name is prefixed with the currently
-        // targeted version of SDL2.
-        if !patch.0.starts_with(&sdl_version) {
-            continue;
-        }
-        let mut patch_set = unidiff::PatchSet::new();
-        patch_set.parse(patch.1).expect("Error parsing diff");
+        apply_patch(sdl2_source_path, &sdl_version, patch)
+    }
+}
 
-        // For every modified file, copy the existing file to <file_name>_old,
-        // open a new copy of <file_name>. and fill the new file with a
-        // combination of the unmodified contents, and the patched sections.
-        // TOOD: This code is untested (save for the immediate application), and
-        // probably belongs in the unidiff (or similar) package.
-        for modified_file in patch_set.modified_files() {
-            use std::io::{Write, BufRead};
+// apply patches to sdl2_mixer source
+#[cfg(all(feature = "bundled", feature = "mixer"))]
+fn patch_sdl2_mixer(sdl2_mixer_source_path: &Path) {
+    // vector of <(patch_file_name, patch_file_contents)>
+    let patches: Vec<(&str, &'static str)> = vec![
+        // No patches at this time. If needed, add them like this:
+        // ("SDL_mixer-2.x.y-filename.patch", include_str!("patches/SDL_mixer-2.x.y-filename.patch")),
+    ];
+    let sdl_mixer_version = format!("SDL2_mixer-{}", LASTEST_SDL2_VERSION);
 
-            let file_path = sdl2_source_path.join(modified_file.path());
-            let old_path = sdl2_source_path.join(format!("{}_old", modified_file.path()));
-            fs::rename(&file_path, &old_path)
-                .expect(&format!(
-                    "Rename of {} to {} failed",
-                    file_path.to_string_lossy(),
-                    old_path.to_string_lossy()));
-
-            let     dst_file = fs::File::create(file_path).unwrap();
-            let mut dst_buf  = io::BufWriter::new(dst_file);
-            let     old_file = fs::File::open(old_path).unwrap();
-            let mut old_buf  = io::BufReader::new(old_file);
-            let mut cursor = 0;
-
-            for (i, hunk) in modified_file.into_iter().enumerate() {
-                // Write old lines from cursor to the start of this hunk.
-                let num_lines = hunk.source_start - cursor - 1;
-                for _ in 0..num_lines {
-                    let mut line = String::new();
-                    old_buf.read_line(&mut line).unwrap();
-                    dst_buf.write_all(line.as_bytes()).unwrap();
-                }
-                cursor += num_lines;
-
-                // Skip lines in old_file, and verify that what we expect to
-                // replace is present in the old_file.
-                for expected_line in hunk.source_lines() {
-                    let mut actual_line = String::new();
-                    old_buf.read_line(&mut actual_line).unwrap();
-                    actual_line.pop(); // Remove the trailing newline.
-                    if expected_line.value.trim_end() != actual_line {
-                        panic!("Can't apply patch; mismatch between expected and actual in hunk {}", i);
-                    }
-                }
-                cursor += hunk.source_length;
-
-                // Write the new lines into the destination.
-                for line in hunk.target_lines() {
-                    dst_buf.write_all(line.value.as_bytes()).unwrap();
-                    dst_buf.write_all(b"\n").unwrap();
-                }
-            }
-
-            // Write all remaining lines from the old file into the new.
-            for line in old_buf.lines() {
-                dst_buf.write_all(&line.unwrap().into_bytes()).unwrap();
-                dst_buf.write_all(b"\n").unwrap();
-            }
-        }
-        // For every removed file, simply delete the original.
-        // TODO: This is entirely untested code. There are likely bugs here, and
-        // this really should be part of the unidiff library, not a function
-        // defined here. Hopefully this gets moved somewhere else before it
-        // bites someone.
-        for removed_file in patch_set.removed_files() {
-            fs::remove_file(sdl2_source_path.join(removed_file.path()))
-                .expect(
-                    &format!("Failed to remove file {} from {}",
-                        removed_file.path(),
-                        sdl2_source_path.to_string_lossy()));
-        }
-        // For every new file, copy the entire contents of the patched file into
-        // a newly created <file_name>.
-        // TODO: This is entirely untested code. There are likely bugs here, and
-        // this really should be part of the unidiff library, not a function
-        // defined here. Hopefully this gets moved somewhere else before it
-        // bites someone.
-        for added_file in patch_set.added_files() {
-            use std::io::Write;
-
-            // This should be superfluous. I don't know how a new file would
-            // ever have more than one hunk.
-            assert!(added_file.len() == 1);
-            let file_path = sdl2_source_path.join(added_file.path());
-            let mut dst_file = fs::File::create(&file_path)
-                .expect(&format!(
-                    "Failed to create file {}",
-                    file_path.to_string_lossy()));
-            let mut dst_buf = io::BufWriter::new(&dst_file);
-
-            for line in added_file.into_iter().nth(0).unwrap().target_lines() {
-                dst_buf.write_all(line.value.as_bytes()).unwrap();
-                dst_buf.write_all(b"\n").unwrap();
-            }
-        }
+    for patch in &patches {
+        apply_patch(sdl2_mixer_source_path, &sdl_mixer_version, patch)
     }
 }
 
@@ -238,6 +287,27 @@ fn patch_sdl2(sdl2_source_path: &Path) {
 #[cfg(feature = "bundled")]
 fn compile_sdl2(sdl2_build_path: &Path, target_os: &str) -> PathBuf {
     let mut cfg = cmake::Config::new(sdl2_build_path);
+    cfg.profile("release");
+
+    if target_os == "windows-gnu" {
+        cfg.define("VIDEO_OPENGLES", "OFF");
+    }
+
+    if cfg!(feature = "static-link") {
+        cfg.define("SDL_SHARED", "OFF");
+        cfg.define("SDL_STATIC", "ON");
+    } else {
+        cfg.define("SDL_SHARED", "ON");
+        cfg.define("SDL_STATIC", "OFF");
+    }
+
+    cfg.build()
+}
+
+// compile a shared or static lib depending on the feature
+#[cfg(all(feature = "bundled", feature = "mixer"))]
+fn compile_sdl2_mixer(sdl2_mixer_build_path: &Path, target_os: &str) -> PathBuf {
+    let mut cfg = cmake::Config::new(sdl2_mixer_build_path);
     cfg.profile("release");
 
     if target_os == "windows-gnu" {
@@ -455,6 +525,7 @@ fn main() {
     let target_os = get_os_from_triple(target.as_str()).unwrap();
 
     let sdl2_compiled_path: PathBuf;
+    let sdl2_mixer_compiled_path: PathBuf;
     #[cfg(feature = "bundled")] {
         let sdl2_source_path = download_sdl2();
         patch_sdl2(sdl2_source_path.as_path());
@@ -464,9 +535,26 @@ fn main() {
         let sdl2_compiled_lib_path = sdl2_compiled_path.join("lib");
 
         println!("cargo:rustc-link-search={}", sdl2_compiled_lib_path.display());
-        
+
+        #[cfg(feature = "bindgen")]
+        let mut include_paths = vec!(String::from(sdl2_downloaded_include_path.to_str().unwrap()));
+
+        #[cfg(feature = "mixer")] {
+            let sdl2_mixer_source_path = download_sdl2_mixer();
+            patch_sdl2_mixer(sdl2_mixer_source_path.as_path());
+            sdl2_mixer_compiled_path = compile_sdl2_mixer(sdl2_mixer_source_path.as_path(), target_os);
+
+            let sdl2_mixer_downloaded_include_path = sdl2_mixer_source_path.join("include");
+            let sdl2_mixer_compiled_lib_path = sdl2_mixer_compiled_path.join("lib");
+
+            println!("cargo:rustc-link-search={}", sdl2_mixer_compiled_lib_path.display());
+
+            #[cfg(feature = "bindgen")] {
+                include_paths.push(String::from(sdl2_mixer_downloaded_include_path.to_str().unwrap()));
+            }
+        }
+
         #[cfg(feature = "bindgen")] {
-            let include_paths = vec!(String::from(sdl2_downloaded_include_path.to_str().unwrap()));
             generate_bindings(target.as_str(), host.as_str(), include_paths.as_slice())
         }
     };
